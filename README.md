@@ -1,4 +1,4 @@
-# DATA621FinalProject
+# AdvancedStatistics(DATA621)FinalProject
 Modelling for Newborn Length of Stay in Intensive Care Units based on Diagnoses
 
 Authors: Luke Larter and Trevor Seeger
