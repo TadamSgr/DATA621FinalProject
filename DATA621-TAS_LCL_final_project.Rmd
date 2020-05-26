@@ -1,0 +1,1179 @@
+---
+title: 'DATA 621 Project: Multi-centre modelling for Newborn Length of Stay in Intensive Care Units based on Diagnoses'
+output:
+  html_document:
+    df_print: paged
+---
+Authors: Luke Larter and Trevor Seeger
+
+
+# Background/Rationale
+Newborn infants are particularly vulnerable to health upsets, thus understanding the determinants of intensive care unit (ICU) outcomes for newborns is integral for predicting how patients will recover. Additionally, complexity and duration of care received in neonatal intensive care unit (NICU) can be predictive of long-term effects on developmental outcomes (Subedi, Deboer, & Scharf, 2017). As such, much research has addressed the factors shaping the health outcomes and survival prospects of newborns admitted to the ICU (Foglia et al., 2017; Kurek Eken, Tüten, Özkaya, Karatekin, & Karateke, 2017; Meadow, Lagatta, Andrews, & Lantos, 2012). As prematurity is a common condition requiring hospitalization in the NICU, many studies have specifically looksed at the NICU outcomes for premature infants (e.g. Manktelow et al., 2010; Kono et al., 2011). However, many health conditions may also require NICU admission for infants who have been brought to term. As infants at differing levels of prematurity will differ in their levels of physiological development, health conditions may interact with levels of prematurity to determine health outcomes (sengupta, 2013). As such, the current study aims to assess NICU patient health outcomes based on level of prematurity in addition to the combination of diagnoses patients have received using the MIMIC-III database. 
+The Multiparameter Intelligent Monitoring in Intensive Care (MIMIC)-III dataset (Johnson et al., 2016) is an freely-accessible, de-identified, ICU-specific dataset with records spanning 10 years. As such, it has been extensively used to test big data solutions in ICU situations. However, to our knowledge there have been no studies that focus completely on the newborns that go to the NICU using this data. 
+While medically, it makes sense that different diagnoses leading to NICU admission will lead to differences in outcome and length of stay, being able to predict the length of stay has not been thoroughly researched. A 2015 systematic literature review found only 9 studies predicting length of stay (Seaton et al., 2016), but of these, only one study included the reason for admission as a predictor, and they studied 4702 very premature infants (23-32 weeks gestation) (Manktelow, Draper, Field, & Field, 2010). Other studies included other conditions of the baby, mother, and other factors. Therefore, it is important to gain the predictive insight into when any baby may be discharged either to other units or home. For parents, having this insight may be beneficial to their engagement and preventing caregiver burnout, as a parent that knows their baby is likely to not be in hospital long will likely suffer less stress, and a parent that knows their baby may be in the hospital longer will be able to find support systems and manage their stress (Peebles-Kleiger, 2000).  
+
+# Research Question/Objective 
+## Research Question 
+We posed the research question: Can the duration and discharge location of a newborns’s ICU stay be modelled based on the diagnoses that led to their admission?  
+
+
+## Aim 1
+Using a Cox proportional hazards model, We will investigate how combinations of different health issue diagnoses influence the likelihood of infants being discharge from NICU over time.
+
+## Aim 2
+As many health conditions may be commonly associated with premature birth, we will also see whether the prevalence of certain health conditions differs among infants who differ in their level of prematurity.
+
+## Aim 3
+We will investigate how patients' health outcomes (i.e. discharged to home, to further hospitalization, etc.) are influenced by the combination of health issues they are diagnosed with when entering NICU. 
+
+## Hypotheses: 
+We hypothesize that the causes for admission to the NICU will influence the length of stay in NICU and the discharge location. Specifically, we hypothesize that the presence of sepsis and prematurity will be most useful in predicting the outcomes due to the multi-system nature of these diagnoses. For example, a premature (or extremely premature) newborn will be a more complex case because they have not reached certain developmental milestones within the entire individual, whereas a malformation may only affect one part of one organ. Therefore, we believe it is prudent to test for interactions with prematurity across all of the other variables, because those organ-specific issues may be triggered or exacerbated by the newborn being born too early in their developmental process. 
+
+
+
+# Methods
+
+
+
+The MIMIC data set includes patients admitted to critical care units consisting of records for 7830 neonates admitted to NICU between 2001 and 2008 in the United States (Johnson et al., 2016). In building our final data set for analysis, demographic information was extracted from the PATIENTS table. The outcomes of interest for our study were the length of patients' stay at the NICU, as well as the location to which a patient was discharged to after their stay at NICU. These data were included in the ADMISSIONS and ICUSTAYS tables. To examine how diagnoses with different health conditions influenced the outcome of interest, we used diagnoses present in the DIAGNOSIS_ICD table. 
+
+## Patient recruitment and inclusion/exclusions criteria
+
+This study utilized newborn infants recorded in the MIMIC-III database who had been admitted to NICU immediately subsequent to their birth (n=7830). As we were interested in duration of stay in NICU, we narrowed our data set down to only contain infants whose stay in NICU was longer than 48 hours (n=450). This was to ensure than we only had cases requiring prolonged hospitalization.
+
+We wanted to determine how infants' combinations of diagnoses affected their health outcomes, however there were a total of 389 unique diagnoses applied to the 450 newborns in our data set. In looking at counts of diagnoses, many of the most common diagnoses (with > 10 occurrences) could be grouped into 7 broad diagnosis categories (exact categorizations can be seen in the python data wrangling file). These are: 
+
+i) Cardiac hemorrhages (e.g. intraventricular hemorrhages, pulmonary hemorrhages) 
+ii) Malformations of the circulatory system (e.g. patent ductus arteriosus, ventricular septal defect)
+iii) Anomalous heart rates or blood pressure (e.g. neonatal bradycardia, hypotension)
+iv) Prematurity (3 levels: full-term, preterm, extreme preterm (<1kg; this cutoff is coded in the MIMIC data set))
+v) Respiratory issues (e.g. atelectasis, apnea, respiratory distress syndrome)
+vi) Sepsis
+vii) Jaundice
+
+As these were the largest sensible groupings of diagnoses that emerged among the most common diagnoses, we then included any male and female infants who were diagnosed with 1 or more of these conditions in our data set. The above diagnoses are not mutually exclusive, and indeed many are commonly comorbid. For example, malformations of the circulatory system and anomalous heart rate are often found together, but they are not inextricably linked. As such, many patients had multiple of the above conditions. These categories are not all encompassing, for example conditions such as hernias, retrolental fibroplasia, and metabolic acidosis appeared as somewhat common diagnoses. However, these and other diagnoses not fitting the scheme above could not be meaningfully grouped together, and so were dropped to avoid an excessive number of categories. Each of the 450 patients whose stay exceeded 48 hours had at least one diagnosis fitting into the above categorization scheme, meaning our final number of subjects was 450 infants.
+
+
+## General outline of analysis
+
+Aim 1 was be addressed via a Cox proportional hazards regression modelling approach in R. The full model included presence/absence of all categories of health issue mentioned above, gender, and interactions between level of prematurity and all other health conditions. We decided to include this because preterm infants, especially extreme preterm, are less robust than infants brought to term, and so are often more vulnerable to health upsets (Platt, 2014). Thus, there are clinical grounds for including an interaction between preterm and other health variables. This full model was then pared down by removing non-significant interactions, then non-significant main effects until only significant variables remained. At each stage of model reduction, proportional hazards assumptions were checked via Schoenfeld plots, likelihood ratio tests were preformed to confirm variable removal would not worsen the model, and the lack of a confounding effect of removed variables was checked (removal did not change betas of remaining variables by > 10%).
+
+Aim 2 was addressed via proportion tests in R. Significant differences in disease prevalence among prematurity groups were investigated with post-hoc pairwise proportion tests, with Bonferroni corrections for multiple comparisons. 
+
+Aim 3 was addressed by multinomial modelling in R. After data cleaning, there were only one individual in each of the death, long term care, and cancer groups, therefore these patients were removed as the groups could not be meaningfully combined with others. Testing was carried on with patients who were discharged to short term care, home health care, and home. We first tested interactions between prematurity and other factors, as they are clinically likely to share some overlap, which will extend to the complexity of each case, and through to whether a patient can be discharged home or require more complex care after their NICU stay.Likelihood ratio tests were performed on each interaction, and if these interactions were significant a larger model would have been built. After model building for the interactions was complete, all main effects that did not have main effects estimates that we could conclude were non-zero were removed from the model, one at a time, tested with a likelihood ratio test, and the main effect with the least effect on the model was removed. The updated model followed the same process until all variables had at least one non-zero estimate or the likelihood ratio test, which indicates that removing the variable significantly reduced the variability captured by the model. 
+
+
+## Analysis
+Analyses were performed under in R version 3.6.2 (R Core Team, 2007) using RStudio (RStudio Team, 2015), using data wrangling processes from tidyr (Wickham & Henry, 2020) and dplyr (Wickham, François, Henry, & Müller, 2020). Figures will be made in ggplot (Wickam, 2009) and ggfortify (Tang, Horikoshi, & Li, 2016).
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE, include = TRUE, warning = FALSE, message = FALSE)
+
+```
+
+```{r include=F}
+# Install any previously uninstalled packages
+list.of.packages <- c("ggplot2", 'ggfortify', "VGAM", "survival", "KMsurv", "survminer", "survivalMPL", "biostat3", "tidyr", "dplyr", "table1")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+
+# load packages
+if(!is.loaded("VGAM")) library(VGAM,quietly=T)
+if(!is.loaded("survival")) library(survival,quietly=T)
+if(!is.loaded("survminer")) library(survminer,quietly=T)
+if(!is.loaded("survivalMPL")) library(survivalMPL,quietly=T)
+if(!is.loaded("biostat3")) library(biostat3,quietly=T)
+if(!is.loaded("ggplot2")) library(ggplot2,quietly=T)
+if(!is.loaded("ggfortify")) library(ggfortify,quietly=T)
+if(!is.loaded("tidyr")) library(tidyr,quietly=T)
+if(!is.loaded("dplyr")) library(dplyr,quietly=T)
+if(!is.loaded("table1")) library(table1,quietly=T)
+
+
+options(scipen=999)
+```
+
+Read data (data cleaned and wrangled in python):
+```{r}
+data=read.csv('datadfpretermNew.csv', header=T)
+
+#Rename so that the appear as column headings in our descriptive table.
+data$preterm[data$preterm == 0] <- 'Full term'
+data$preterm[data$preterm == 1] <- 'Preterm'
+data$preterm[data$preterm == 2] <- 'Extreme preterm'
+
+head(data)
+```
+
+Change all categorical variables to factors:
+```{r}
+data$cardiac.hemorrage=factor(data$cardiac.hemorrage)
+data$circulatory.system.malformation=factor(data$circulatory.system.malformation)
+data$heart.rate.circulation.issues=factor(data$heart.rate.circulation.issues)
+data$preterm=factor(data$preterm)
+data$respiratory=factor(data$respiratory)
+data$jaundice=factor(data$jaundice)
+data$sepsis=factor(data$sepsis)
+
+data <- within(data, preterm <- relevel(preterm, ref = 'Full term'))
+```
+
+## Description of Study Subjects
+
+
+```{r}
+data1 = data
+
+data$GENDER <- 
+  factor(data$GENDER, levels=c("F","M"),
+         labels=c("Female", 
+                  "Male"))
+
+data$cardiac.hemorrage <- 
+  factor(data$cardiac.hemorrage, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+data$circulatory.system.malformation <- 
+  factor(data$circulatory.system.malformation, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+data$heart.rate.circulation.issues <- 
+  factor(data$heart.rate.circulation.issues, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+data$respiratory <- 
+  factor(data$respiratory, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+data$sepsis <- 
+  factor(data$sepsis, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+data$jaundice <- 
+  factor(data$jaundice, levels=c(0,1),
+         labels=c("Absent", 
+                  "Present"))
+
+data$DISCHARGE_LOCATION <- 
+  factor(data$DISCHARGE_LOCATION, levels=c( "DEAD/EXPIRED", "DISC-TRAN CANCER/CHLDRN H", "HOME", "HOME HEALTH CARE", "LONG TERM CARE HOSPITAL", "SHORT TERM HOSPITAL"),
+         labels=c("Dead", "Discharged to Cancer Care/ Children's Hospital", "Home", "Home with Health Care", "Long Term Care Facility", "Short Term Hospital"))
+
+
+label(data$GENDER)       <- "Gender"
+label(data$cardiac.hemorrage)       <- "Cardiac Hemorrhages"
+label(data$circulatory.system.malformation)       <- "Circulatory System Malformation"
+label(data$heart.rate.circulation.issues)       <- "Heart Rate or Circulation Dysfunction"
+label(data$respiratory)       <- "Respiratory Issues"
+label(data$sepsis)       <- "Sepsis"
+label(data$jaundice)       <- "Jaundice"
+label(data$DISCHARGE_LOCATION)       <- "Discharge Location"
+label(data$LOS)       <- "Length of Stay"
+
+
+table1(~ GENDER + cardiac.hemorrage + circulatory.system.malformation + heart.rate.circulation.issues + respiratory + sepsis + jaundice +
+      DISCHARGE_LOCATION + LOS | preterm, data = data )
+
+
+data = data1
+```
+
+
+
+
+
+## Addressing Aim 1): Cox Proportional Hazard Modelling
+
+Model and Variables:
+
+We built a cox proportional hazards regression model to determine whether infant gender and diagnosis with certain categories of health insult affect the likelihood of being discharged from the neonatal intensive care unit, based on their length of stay in the NICU. Thus, the event which we modeled with our time-to-event model is a positive health outcome; discharge from NICU. This  analysis was conducted using the survival (Therneau & Grambsch, 2000), survminer (Kassambara, Kosinski, & Biecek, 2019), survivalMPL (Couturier, Ma, Heritier, & Manuguerra, 2017), and biostat3 (Karlsson & Clements, 2019) packages. The categorical variables that we used are: 
+
+- Level of prematurity (full-term, preterm, extreme preterm (<1kg))
+- Whether the infant has been diagnosed with a cardiac hemorrhage (Y/N)
+- Whether the infant has been diagnosed with a malformation of some part of their circulatory system (Y/N)
+- Whether the infant has been diagnosed with anomalous heart rate or blood pressure (Y/N)
+- Whether the infant has been diagnosed with respiratory issues (Y/N)
+- Whether the infant has been diagnosed with sepsis (Y/N)
+- Whether the infant has been diagnosed with jaundice (Y/N)
+- Gender (M/F)
+
+We also decided to include interactions between each of these health conditions and the infant's level of prematurity. We decided to include this because preterm infants, especially extreme preterm, are less robust than infants brought to term, and so are often more vulnerable to health upsets (Platt, 2014). Thus, there are clinical grounds for including an interaction between preterm and other health variables. 
+
+Only one infant in our final set of subjects died while in the NICU, and so was the only censored data point in our analysis.
+
+```{r}
+full_model <-coxph(Surv(LOS, delta)~ GENDER + preterm*cardiac.hemorrage + preterm*circulatory.system.malformation + preterm*heart.rate.circulation.issues + preterm*respiratory + preterm*sepsis + preterm*jaundice, method=c("breslow"),data = data)
+summary(full_model)
+```
+
+```{r fig20, fig.height = 14, fig.width = 16}
+test1 <- cox.zph(full_model)
+ggcoxzph(test1)
+```
+
+- Global tests show full model is significant
+- The global p value from the Schoenfeld plot indicates the model agrees with the proportional hazards assumption. However, cardiac hemorrhage and it's interaction have local p values that indicate a violation of this assumption. For the time being, we will keep these in the model and see whether these become significant. If so, we will attempt to remedy this violation, e.g. by stratification of this variable. This caveat will apply to subsequent model tests.
+- Many of the interaction terms are not significant. We will proceed by removing these 1 by 1, in descending order of their distance from our significance threshold of 0.05.
+
+### Remove interaction term furthest from significance (preterm*jaundice):
+
+```{r}
+reduced_modelA <-coxph(Surv(LOS, delta)~ GENDER + preterm*cardiac.hemorrage + preterm*circulatory.system.malformation + preterm*heart.rate.circulation.issues + preterm*respiratory + preterm*sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelA)
+```
+
+```{r fig2, fig.height = 14, fig.width = 16}
+test2 <- cox.zph(reduced_modelA)
+ggcoxzph(test2)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(full_model,reduced_modelA)
+```
+
+- The full model is not significantly better than the reduced model, thus we will remove this interaction and proceed.
+
+
+
+### Remove interaction term furthest from significance (preterm*respiratory):
+
+```{r}
+reduced_modelB <-coxph(Surv(LOS, delta)~ GENDER+preterm*cardiac.hemorrage + preterm*circulatory.system.malformation + preterm*heart.rate.circulation.issues + respiratory + preterm*sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelB)
+```
+
+```{r fig3, fig.height = 14, fig.width = 16}
+test3 <- cox.zph(reduced_modelB)
+ggcoxzph(test3)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelA,reduced_modelB)
+```
+
+- The larger model is not significantly better than the reduced model, thus we will remove this interaction and proceed.
+
+
+
+### Remove interaction term furthest from significance (preterm*heart.rate.circulation.issues):
+
+```{r}
+reduced_modelC <-coxph(Surv(LOS, delta)~ GENDER + preterm*cardiac.hemorrage + preterm*circulatory.system.malformation + heart.rate.circulation.issues + respiratory + preterm*sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelC)
+```
+
+```{r fig4, fig.height = 14, fig.width = 16}
+test4 <- cox.zph(reduced_modelC)
+ggcoxzph(test4)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelB,reduced_modelC)
+```
+
+- The larger model is not significantly better than the reduced model, thus we will remove this interaction and proceed.
+
+
+
+### Remove interaction term furthest from significance (preterm*cardiac.hemorrhage):
+
+```{r}
+reduced_modelD <-coxph(Surv(LOS, delta)~ GENDER + cardiac.hemorrage + preterm*circulatory.system.malformation + heart.rate.circulation.issues + respiratory + preterm*sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelD)
+```
+
+```{r fig5, fig.height = 14, fig.width = 16}
+test5 <- cox.zph(reduced_modelD)
+ggcoxzph(test5)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelD,reduced_modelC)
+```
+
+- The larger model is not significantly better than the reduced model, thus we will remove this interaction and proceed.
+
+
+
+### Remove interaction term furthest from significance (preterm*sepsis):
+
+```{r}
+reduced_modelE <-coxph(Surv(LOS, delta)~ GENDER + cardiac.hemorrage + preterm*circulatory.system.malformation + heart.rate.circulation.issues + respiratory + sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelE)
+```
+
+```{r fig6, fig.height = 14, fig.width = 16}
+test6 <- cox.zph(reduced_modelE)
+ggcoxzph(test6)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelD,reduced_modelE)
+```
+
+- The larger model is not significantly better than the reduced model, thus we will remove this interaction and proceed.
+
+- Now we just have a model including the main effects and one significant interaction term. We will proceed by removing non-significant main effects 1 by 1 in descending order of their distance from our significance threshold of 0.05. 
+
+
+
+### Remove main effect furthest from significance (heart.rate.circulation.issues):
+
+```{r}
+reduced_modelF <-coxph(Surv(LOS, delta)~ GENDER + cardiac.hemorrage + preterm*circulatory.system.malformation + respiratory + sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelF)
+```
+
+```{r fig7, fig.height = 14, fig.width = 16}
+test7 <- cox.zph(reduced_modelF)
+ggcoxzph(test7)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot global p value shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelE,reduced_modelF)
+```
+- The larger model is not significantly better than the reduced model, and this main effect is not a confounder (< 10% change in other betas), thus we will remove this main effect and proceed.
+
+
+
+### Remove main effect furthest from significance (cardiac hemorrhage):
+
+```{r}
+reduced_modelG <-coxph(Surv(LOS, delta)~ GENDER + preterm*circulatory.system.malformation + respiratory + sepsis + jaundice, method=c("breslow"),data = data)
+summary(reduced_modelG)
+```
+
+```{r fig8, fig.height = 14, fig.width = 16}
+test8 <- cox.zph(reduced_modelG)
+ggcoxzph(test8)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot p values shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelF,reduced_modelG)
+```
+
+- The larger model is not significantly better than the reduced model, and this main effect is not a confounder (< 10% change in other betas), thus we will remove this main effect and proceed.
+
+
+
+### Remove main effect furthest from significance (jaundice):
+
+```{r}
+reduced_modelH <-coxph(Surv(LOS, delta)~ GENDER + preterm*circulatory.system.malformation + respiratory + sepsis, method=c("breslow"),data = data)
+summary(reduced_modelH)
+```
+
+```{r fig9, fig.height = 14, fig.width = 16}
+test9 <- cox.zph(reduced_modelH)
+ggcoxzph(test9)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot p values shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelG,reduced_modelH)
+```
+
+- The larger model is not significantly better than the reduced model, and this main effect is not a confounder (< 10% change in other betas), thus we will remove this main effect and proceed.
+
+
+
+### Remove main effect furthest from significance (gender):
+
+```{r}
+reduced_modelI <-coxph(Surv(LOS, delta)~ preterm*circulatory.system.malformation + respiratory + sepsis, method=c("breslow"),data = data)
+summary(reduced_modelI)
+```
+
+```{r fig10, fig.height = 14, fig.width = 16}
+test10 <- cox.zph(reduced_modelI)
+ggcoxzph(test10)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot p values shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelH,reduced_modelI)
+```
+
+- The larger model is not significantly better than the reduced model, and this main effect is not a confounder (< 10% change in other betas), thus we will remove this main effect and proceed.
+
+
+
+### Remove main effect furthest from significance (respiratory):
+
+```{r}
+reduced_modelJ <-coxph(Surv(LOS, delta)~ preterm*circulatory.system.malformation + sepsis, method=c("breslow"),data = data)
+summary(reduced_modelJ)
+```
+
+```{r fig11, fig.height = 10, fig.width = 16}
+test11 <- cox.zph(reduced_modelJ)
+ggcoxzph(test11)
+```
+
+- Global tests show reduced model is significant
+- Schoenfeld plot p values shows model meets proportional hazards assumption.
+
+```{r}
+anova(reduced_modelI,reduced_modelJ)
+```
+
+- The larger model is not significantly better than the reduced model, and this main effect is not a confounder (< 10% change in other betas), thus we will remove this main effect and proceed.
+
+- Now all main effects and all interaction terms remaining in our model are significant. Thus we have our final model:
+
+
+### FINAL MODEL:
+```{r}
+final_model <-coxph(Surv(LOS, delta)~ preterm*circulatory.system.malformation + sepsis, method=c("breslow"),data = data)
+summary(final_model)
+```
+
+### Double check that this interaction improves our model over just a model with these main effects:
+
+```{r}
+final_noInt <-coxph(Surv(LOS, delta)~ preterm+circulatory.system.malformation + sepsis, method=c("breslow"),data = data)
+```
+```{r}
+anova(final_model,final_noInt)
+```
+
+- The model with the interaction included is significantly better. Thus, our final model remains as it is.
+
+
+Test proportional hazards assumption for final model with schoenfeld test:
+
+```{r fig12, fig.height = 6, fig.width = 12}
+test12 <- cox.zph(final_model)
+ggcoxzph(test12)
+```
+
+- Schoenfeld plot p values shows that our final model meets proportional hazards assumption.
+
+
+### Final Cox Proportional Hazards Model 
+```{r}
+summary(final_model)
+```
+
+
+## Addressing Aim 2): Tests for proportional differences between preterm levels in having each category of diagnosis 
+
+Based on me coding medical conditions as 0 for absence, and 1 for presence, the 0 column appears as the first column in the table and is read as the success column. Thus, the proportions presented in the prop tests below should be read as the proportion of infants in each group who DO NOT suffer from that condition. Additionally, based on the leveling of the three preterm labels; proportion 1 = Full-term, proportion 2 = Extreme preterm, and proportion 3 = Preterm.
+
+```{r include=F}
+cardtab=table(data$preterm, data$cardiac.hemorrage)
+circtab=table(data$preterm, data$circulatory.system.malformation)
+hrtab=table(data$preterm, data$heart.rate.circulation.issues)
+resptab=table(data$preterm, data$respiratory)
+septab=table(data$preterm, data$sepsis)
+jauntab=table(data$preterm, data$jaundice)
+```
+
+### Prop test for difference in prevalence of cardiac hemorrhage:
+```{r}
+prop.test(cardtab, alternative = c("two.sided"))
+```
+
+- Not a significant difference between groups.
+
+
+
+### Prop test for difference in prevalence of circulatory malformations:
+```{r}
+prop.test(circtab, alternative = c("two.sided"))
+```
+
+- Significant difference in prevalence between groups ; we will do post-hoc pairwise comparisons to see which groups are different:
+
+```{r}
+pairwise.prop.test(circtab, alternative = c("two.sided"), p.adjust.method = 'bonferroni') #adjusts for multiple comparisons
+```
+
+- We can see that the significant difference was between preterm and extreme preterm, where extreme preterm had a higher prevalence of circulatory system malformations (lower proportion of healthy kids)
+
+
+
+### Prop test for difference in prevalence of heart rate anomalies:
+```{r}
+prop.test(hrtab, alternative = c("two.sided"))
+```
+
+- Significant difference in prevalence between groups ; we will do post-hoc pairwise comparisons to see which groups are different:
+
+```{r}
+pairwise.prop.test(hrtab, alternative = c("two.sided"), p.adjust.method = 'bonferroni') #adjusts for multiple comparisons
+```
+
+- We can see that there were significant differences between full-term and preterm, and full-term and extreme preterm, where full-term had a lower prevalence of heart rate anomalies than the other two groups (higher proportion of healthy kids)
+
+
+### Prop test for difference in prevalence of respiratory distress:
+```{r}
+prop.test(resptab, alternative = c("two.sided"))
+```
+
+- Not a significant difference between groups. As this was close to significant, I inspected with pairwise tests, but all pairwise tests were non-significant too.
+
+
+### Prop test for difference in prevalence of sepsis:
+```{r}
+prop.test(septab, alternative = c("two.sided"))
+```
+
+- Significant difference in prevalence between groups ; we will do post-hoc pairwise comparisons to see which groups are different:
+
+```{r}
+pairwise.prop.test(septab, alternative = c("two.sided"), p.adjust.method = 'bonferroni') #adjusts for multiple comparisons
+```
+
+- We can see that the significant difference was between preterm and extreme preterm, where extreme preterm had a higher prevalence of sepsis (lower proportion of healthy kids)
+
+
+### Prop test for difference in prevalence of jaundice:
+```{r}
+prop.test(jauntab, alternative = c("two.sided"))
+```
+
+- Significant difference in prevalence between groups ; we will do post-hoc pairwise comparisons to see which groups are different:
+
+```{r}
+pairwise.prop.test(jauntab, alternative = c("two.sided"), p.adjust.method = 'bonferroni') #adjusts for multiple comparisons
+```
+
+- We can see that there were significant differences between full-term and preterm, and full-term and extreme preterm, where full-term had a lower prevalence of jaundice than the other two groups (higher proportion of healthy kids)
+
+
+
+
+
+
+## Addressing Aim 3): Multinomial Modelling of Discharge Locations
+
+To examine the influence of diagnoses on the initial location to which neonate patients will be discharged, multinomial modelling conducted using the VGAM package (Yee, 2019; Yee, Stoklosa, & Huggins, 2015), with the same categorical variables used in the above analysis, though delta was removed. 
+
+```{r}
+dat = read.csv("datadfpretermNew.csv")
+
+dat$HADM_ID = factor(dat$HADM_ID)
+dat$cardiac.hemorrage = factor(dat$cardiac.hemorrage)
+dat$circulatory.system.malformation = factor(dat$circulatory.system.malformation)
+dat$heart.rate.circulation.issues = factor(dat$heart.rate.circulation.issues)
+dat$preterm = factor(dat$preterm) #0 means not preterm, 1 means preterm, and 2 is extreme preterm.
+dat$respiratory = factor(dat$respiratory)
+dat$jaundice = factor(dat$jaundice)
+dat$sepsis = factor(dat$sepsis)
+
+
+table(dat$DISCHARGE_LOCATION)
+```
+
+Because there was only one individual in each of dead, discharge transfer to cancer or childrens' hospital, and long term care hospital categories, we needed to remove those patients as the groups were too small to make comparisons nor could we meaningfully combine them. 
+```{r}
+dat<-dat[!(dat$DISCHARGE_LOCATION=="DEAD/EXPIRED" | dat$DISCHARGE_LOCATION=="DISC-TRAN CANCER/CHLDRN H" | dat$DISCHARGE_LOCATION=="LONG TERM CARE HOSPITAL"),]
+```
+
+
+```{r}
+(multi.wvgam <-  vglm(formula = DISCHARGE_LOCATION ~ cardiac.hemorrage + circulatory.system.malformation +
+                        heart.rate.circulation.issues +  preterm + respiratory + sepsis + jaundice + GENDER,
+                      data=dat,
+                      family=multinomial))
+summary(multi.wvgam)
+```
+
+
+
+### Testing for an initial interaction for prematurity
+As there is likely a clinical interplay between how premature a new born is and the complexity of their case, we felt that it was prudent to investigate interaction models before eliminating factors. 
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * cardiac.hemorrage),type=1)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * circulatory.system.malformation),type=1)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * heart.rate.circulation.issues),type=1)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * respiratory),type=1)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * sepsis),type=1)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * jaundice),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+preterm * GENDER),type=1)
+```
+However, probing these interactions did not yield findings that would give us cause to choose an interaction model. This is to say that we would fail to reject the null hypothesis of all of the above likelihood ratio tests (p>0.05) and conclude that the larger interaction models do not account for additional variability in the data.
+
+
+### Assumptions of Multinomial models
+The multinomial logistic regression assumes: 
+
+* Case specificity (that each participant is in the data set once)
+
+* collinearity is relatively low
+
+* the independence of irrelevant alternatives
+
+However, these tests are not accessible for the types of data being analysed in this study. Therefore, we will proceed with satisfying the first assumption: all rows of data were retrieved from unique patient identifiers in the MIMIC study. 
+
+
+### Making a more parsimonious model
+Above, we see variables that do not effectively model the data, so we will perform a likelihood ratio test when each of the above variables has been removed to determine which should be taken out of the model. From the findings of the Wald Z tests for the main effects model shown above, we would not expect sepsis or prematurity to indicate that we should reject the null hypothesis of the likelihood ratio test, as we would already fail to reject the null hypothesis of the Wald tests (p<0.05, for at least one level of the factor)
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-cardiac.hemorrage),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-circulatory.system.malformation),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-heart.rate.circulation.issues),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-GENDER),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-jaundice),type=1)
+```
+
+Based on these findings, we cannot remove the respiratory variables ($\chi^2$(2)=9.296, p = 0.0096). Therefore, we will remove gender: it is less clinically important to the research question we asked regarding the possible link between the reason for admission and the discharge location, and statistically, we are correct to remove it. 
+
+                      
+#### Removing Gender from the Model
+
+```{r}
+multi.wvgam = update(multi.wvgam,.~.-GENDER)
+summary(multi.wvgam)
+```
+
+Again, from the Wald tests, sepsis and prematurity (and potentially jaundice) seem most promising, so we will not remove them, but we must investigate other factors to make a more parsimonious models.
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-cardiac.hemorrage),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-circulatory.system.malformation),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-heart.rate.circulation.issues),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-jaundice),type=1)
+```
+
+#### Removing Cardiac from the Model
+cardiac.hemorrhage was removed from the model due to the high p value of the likelihood ratio test. 
+
+```{r}
+multi.wvgam = update(multi.wvgam,.~.-cardiac.hemorrage)
+summary(multi.wvgam)
+```
+
+Once more, sepsis and prematurity do not need to be tested with the likelihood ratio test, but the remaining factors should be examined. 
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-circulatory.system.malformation),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-heart.rate.circulation.issues),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-jaundice),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+
+
+#### Removing Heart Rate
+heart.rate.circulation.issues was removed because the anova showed greatest p-value, indicating the lowest probability of the larger model accounting for additional variability. 
+
+
+
+```{r}
+multi.wvgam = update(multi.wvgam,.~.-heart.rate.circulation.issues)
+summary(multi.wvgam)
+```
+
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-circulatory.system.malformation),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-jaundice),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+
+
+
+
+#### Removing Circulatory System Malformation from the Model
+In the Wald Z tests, both sepsis and preterm have levels which would indicate that we should reject the null hypothesis (p<0.05), and jaundice is close in the wald test. In the Wald test, respiratory causes are not significant, however, the likelihood ratio tests indicates that we should conclude that a significant amount of variability is accounted for by including this factor. Therefore, the only variable that both tests agree upon is circulatory malformations. 
+
+
+```{r}
+multi.wvgam = update(multi.wvgam,.~.-circulatory.system.malformation)
+summary(multi.wvgam)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-jaundice),type=1)
+```
+
+
+
+#### Removing Jaundice from the Model
+The likelihood ratio test explores the null hypothesis as to whether the additional argument in the model accounts for more variability within the data, therefore, while the wald test shows that the estimate for jaundice is approaching our alpha, we must conclude in alignment with the likelihood ratio test. Therefore, removing jaundice from the model did not affect it's accounting of the data's variability, and we would reduce the model as such. 
+
+
+```{r}
+multi.wvgam = update(multi.wvgam,.~.-jaundice)
+summary(multi.wvgam)
+```
+
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.-respiratory),type=1)
+```
+Because the likelihood ratio test above (F(2, )=9.165, p=0.0102) indicates that the model accounts for more variability in the data with respiratory variables included, we will proceed with this variable in the model. 
+
+
+
+### Interaction model with most relevant factors
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+sepsis * preterm),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+respiratory * preterm),type=1)
+```
+
+```{r}
+anova(multi.wvgam,update(multi.wvgam,.~.+sepsis * respiratory),type=1)
+```
+It appears that there are no interactions that need to be included in the model: we would fail to reject the null hypothesis on all likelihood ratio tests (p<0.05)
+
+
+
+
+
+### Final Multinomial Model
+```{r}
+summary(multi.wvgam)
+```
+
+# Results
+## Aim 1): Cox Proportional Hazards Model 
+Model Interpretation:
+```{r}
+summary(final_model)
+```
+
+
+$$
+\begin{aligned}
+\begin{split}
+ln \biggl(\frac{h_{Discharge}(t)}{h_{Discharge0}(t)} \biggl) &=  \hat\beta_{Preterm1}\times X_{Preterm1} + \hat\beta_{Preterm2}\times X_{Preterm2} + \hat\beta_{CiculatoryMalformation}\times X_{CiculatoryMalformation} + {} \\
+&\qquad\qquad
+\hat\beta_{Sepsis}\times X_{Sepsis} + \hat\beta_{Preterm1*CiculatoryMalformation}\times X_{Preterm1*CiculatoryMalformation} + {} \\
+&\qquad\qquad
+\hat\beta_{Preterm2*CiculatoryMalformation}\times X_{Preterm2*CiculatoryMalformation}
+\end{split}
+\end{aligned}
+$$
+
+
+- Extreme preterm infants were significantly less likely to be discharged from NICU than full-term infants (p < 0.0001), while there was not a significant difference between full-term and preterm infants (p = 0.16). exp(β) for extreme preterm relative to full-term is 0.2021, indicating that the infants diagnosed as having sepsis were 0.2 times as likely to be discharged from NICU than were infants who were full-term.
+- A diagnosis of sepsis significantly affects an infant's likelihood of being discharged from NICU (p = 0.00005). exp(β) for sepsis is 0.6212, indicating that the infants diagnosed as having sepsis were 0.62 times as likely to be discharged from NICU than were infants who had not received this diagnosis. i.e. having sepsis decreased an infant's likelihood of being discharged.
+
+- For full-term infants, being diagnosed with a circulatory system malformation significantly decreased an infant's likelihood of being discharged from NICU (P = 0.002), and there was an interaction between prematurity level and having a circulatory system malformation on likelihood of discharge.
+- The interaction between an infant being extreme preterm and having a circulatory system malformation is significant (p = 0.0049), while the interaction between an infant being preterm and having a circulatory system malformation is just above the threshold of significance (p = 0.089). This indicates that the effect on likelihood of being discharged from NICU of having, or not having, a circulatory system malformation differed depending on which level of preterm the infant is.
+- Specifically, this indicates that having a circulatory system malformation has a lesser affect on likelihood of being discharged from NICU for extreme preterm infants than for full-term infants. Additionally, the near-significant interaction between being preterm and having circulatory system malformation hints that having a circulatory system malformation may have had a lesser effect on likelihood of being discharged from NICU for preterm infants than for non-preterm infants.
+
+
+
+## Plotting Kaplan-Meier Curves for Variables Significant in Coxph Model
+
+The Kaplan-Meier Curves plotted here are mainly intended as visual illustrations of the results of Cox PH model detailed above.
+
+### Plot survival curves for each level of prematurity:
+
+```{r}
+pretermSurv <- survfit(Surv(LOS, delta) ~ preterm, data=data)
+```
+```{r fig13, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   pretermSurv, 
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3", 'turquoise'),
+   legend.labs=c('FULL TERM', 'EXTREME PRETERM', 'PRETERM'),
+   legend.title="Prematurity",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+
+- You can see that the confidence intervals for full-term and preterm overlap, and their curves cross one another. As such, we can't say that one group showed higher likelihood of being discharged from NICU than did the other. However, the curve for extreme preterm is separate from these other 2 curves, and shows a decreased likelihood to be discharged from NICU for these infants compared to the other 2 groups.
+
+
+### Plot survival curves for presence/absence of circulatory system malformation:
+```{r}
+circSurv <- survfit(Surv(LOS, delta) ~ circulatory.system.malformation, data=data)
+```
+```{r fig14, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   circSurv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3"),
+   legend.labs=c('NO', 'YES'),
+   legend.title="Circulatory malformation diagnosis",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+- Having been diagnosed with a circulatory system malformation decreased an infant's likelihood of being discharged from NICU.
+
+
+### Plot interaction between level of prematurity and circulatory system malformation:
+```{r include=F}
+#First, get combine these two columns to a single additional column (each preterm level with/without circulatory system malformation):
+data$Group=paste(data$preterm,data$circulatory.system.malformation)
+data$Group=factor(data$Group)
+```
+
+```{r include=F}
+p0=subset(data, data$preterm=='Full term')
+p1=subset(data, data$preterm=='Preterm')
+p2=subset(data, data$preterm=='Extreme preterm')
+```
+
+
+### Full-term with/without circulatory system malformation:
+```{r}
+p0Surv <- survfit(Surv(LOS, delta) ~ Group, data=p0)
+```
+
+```{r fig15, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   p0Surv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3"),
+   legend.labs=c('Full-term without CM', 'Full-term with CM'),
+   legend.title="",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+- We can see that curves do not cross, though the CI's overlap. For full-term infants, having a circulatory system malformation decreased the likelihood of being discharged from NICU.
+
+
+### Preterm with/without circulatory system malformation:
+```{r}
+p1Surv <- survfit(Surv(LOS, delta) ~ Group, data=p1)
+```
+```{r fig16, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   p1Surv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3"),
+   legend.labs=c('Preterm without CM', 'Preterm with CM'),
+   legend.title="",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+- Can see that curves do not cross, though CI's overlap in some places. For preterm infants, having a circulatory system malformation decreased likelihood of being discharged from NICU.
+
+
+### Extreme preterm with/without circulatory system malformation:
+```{r}
+p2Surv <- survfit(Surv(LOS, delta) ~ Group, data=p2)
+```
+```{r fig17, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   p2Surv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3"),
+   legend.labs=c('Extreme preterm without CM', 'Extreme preterm with CM'),
+   legend.title="",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+- Can see that the curves are very close to one another, the CI's overlap extensively, and the curves cross at multiple points. Thus, we can not say that having a circulatory system malformation decreased or increased an extreme preterm infant's likelihood of being discharged from NICU.
+
+
+
+### Plot interaction of preterm level and presence/absence of circulatory system malformation:
+```{r}
+groupSurv <- survfit(Surv(LOS, delta) ~ Group, data=data)
+```
+```{r fig1, fig.height = 9, fig.width = 15}
+ggsurvplot(
+   groupSurv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3", "gray75", "gray76", 'gray77', 'gray78'),
+   legend.labs=c('EP without CM', 'EP with CM', 'PT without CM', 'PT with CM', 'FT without CM', 'FT with CM'),
+   legend.title="",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)',
+   size = 1.2
+)
+```
+
+- This is a plot of all 3 levels of prematurity with and without a circulatory system malformation (full-term and preterm have been grayed out to emphasize extreme preterm). We can see that extreme preterm with circulatory malformation appears to have the lowest likelihood of being discharged from NICU overall. However, as was seen above, the curves for extreme preterm with CM, and extreme preterm without CM cross, thus we can't say that either extreme preterm group has a higher or lower likelihood of being discharged from NICU.
+
+
+
+### Plot for infants with and without sepsis:
+
+```{r}
+sepSurv <- survfit(Surv(LOS, delta) ~ sepsis, data=data)
+```
+```{r fig19, fig.height = 6, fig.width = 10}
+ggsurvplot(
+   sepSurv,      
+   data = data,   
+   risk.table = TRUE,       
+   conf.int = TRUE,          
+   ggtheme = theme_minimal(), 
+   risk.table.y.text.col = T, 
+   palette=c("mediumorchid", "springgreen3"),
+   legend.labs=c('NO', 'YES'),
+   legend.title="Sepsis diagnosis",
+   ylab='Probability of remaining in NICU',
+   xlab='Time (days)'
+)
+```
+
+- Can see that a diagnosis of sepsis decreased the likelihood of an infant being discharged from NICU.
+
+
+## Aim 2): Tests for proportional differences between preterm levels
+
+- There was a significant difference between preterm and extreme preterm in prevalence of circulatory system malformations (p = 0.00003), with extreme preterm having higher prevalence.
+- There were significant differences between full-term and preterm (p = 0.016), and full-term and extreme preterm (p = 0.020) for prevalence of heart rate anomalies, where full-term had a lower prevalence of heart rate anomalies than the other two groups.
+- There was a significant difference between preterm and extreme preterm in prevalence of sepsis (0.00000047), with extreme preterm having a higher prevalence of sepsis.
+- There were significant differences between full-term and preterm (p = 0.0023), and full-term and extreme preterm (p = 0.0002), for prevalence of jaundice, with full-term having a lower prevalence of jaundice than the other two groups.
+
+
+
+## Aim 3): Multinomial Model
+```{r}
+summary(multi.wvgam)
+```
+
+Considering that the reference level is level 3 of Discharge location ("Short term hospital stay), after removing the three levels without enough data, we see focus on home and home health care discharges. 
+
+$$
+\begin{aligned}
+\begin{split}
+ln \biggl(\frac{P(Discharge = Home)}{\text{P(Discharge = Short Term Hospital})} \biggl) &= \hat\beta_{1,0} + \hat\beta_{1,Preterm1}\times X_{1,Preterm1} + \hat\beta_{1,Preterm2}\times X_{1,Preterm2} + {} \\
+&\qquad\qquad
+\hat\beta_{1,Respiratory}\times X_{1,Respiratory} + \hat\beta_{1,Sepsis}\times X_{1,Sepsis}
+\\
+\\
+ln \biggl(\frac{P(Discharge = Home Health Care)}{\text{P(Discharge = Short Term Hospital}} \biggl) &= \hat\beta_{2,0} + \hat\beta_{2,Preterm}\times X_{2,Preterm} + \hat\beta_{1,Preterm2}\times X_{1,Preterm2} +{} \\
+&\qquad\qquad
+\hat\beta_{2,Respiratory}\times X_{2,Respiratory} + \hat\beta_{2,Sepsis}\times X_{2,Sepsis}
+\end{split}
+\end{aligned}
+$$
+
+If we input the numbers from the above modelling into these equations, they become:
+
+$$
+\begin{aligned}
+\begin{split}
+ln \biggl(\frac{P(Discharge = Home)}{\text{P(Discharge = Short Term Hospital})} \biggl) &= 16.0918 + 0.5857\times X_{1,Preterm1} + -1.0933\times X_{1,Preterm2} + {} \\
+&\qquad\qquad
+-15.3190\times X_{1,Respiratory} +-0.2733\times X_{1,Sepsis}
+\\
+\\
+ln \biggl(\frac{P(Discharge = Home Health Care)}{\text{P(Discharge = Short Term Hospital}} \biggl) &= 15.4580 + 0.2125\times X_{2,Preterm} + -1.3807\times X_{1,Preterm2} +{} \\
+&\qquad\qquad
+-13.4944\times X_{2,Respiratory} + 0.8059\times X_{2,Sepsis}
+\end{split}
+\end{aligned}
+$$
+Therefore, we would conclude that for the first question, the log odds of a newborn going home compared to staying in the hospital, with an intercept of `r coef(summary(multi.wvgam))[1,1]`, slightly preterm infants (preterm1) show a log odds increase of `r coef(summary(multi.wvgam))[3,1]` (Z=`r coef(summary(multi.wvgam))[3,3]`, p = `r coef(summary(multi.wvgam))[3,4]`), which is to say, an odds ratio `r exp(coef(summary(multi.wvgam))[3,1])` times greater, to go home than have a short term hospital stay. In extremely preterm children, the log odds that they will go home decreases by `r coef(summary(multi.wvgam))[5,1]` (Z=`r coef(summary(multi.wvgam))[5,3]`, p = `r coef(summary(multi.wvgam))[5,4]`). Therefore, we would expect the odds of going home to decrease by `r exp(coef(summary(multi.wvgam))[5,1])` times in favour of a short term hospital stay. In this model, the effect of being slightly preterm and extremely preterm are not additive, a child will fall into one category or the other at birth, and according to this data set, will not change into the other category after ex-utero maturation as these clinical presentations are considered different in complexity and risk. Furthermore, respiratory issues decrease the log odds of a newborn going straight home by `r coef(summary(multi.wvgam))[7,1]` (Z=`r coef(summary(multi.wvgam))[7,3]`, p = `r coef(summary(multi.wvgam))[7,4]`). If we convert that main effect to an odds ratio, it is `r exp(coef(summary(multi.wvgam))[7,1])` times less likely that the patient will go directly home. Similarly, with sepsis, we see a log odds ratio estimate of `r coef(summary(multi.wvgam))[9,1]` (Z=`r coef(summary(multi.wvgam))[9,3]`, p = `r coef(summary(multi.wvgam))[9,4]`), which translates to `r exp(coef(summary(multi.wvgam))[9,1])` times as likely to be discharged directly home is sepsis or infections are the cause for NICU admission. 
+
+The equation to determine if a child will be discharge to home with health care aids follows a very similar pattern, with slightly different values. With an intercept of `r coef(summary(multi.wvgam))[2,1]`, slightly preterm babies (preterm1) show a log odds increase of `r coef(summary(multi.wvgam))[4,1]` (Z=`r coef(summary(multi.wvgam))[4,3]`, p = `r coef(summary(multi.wvgam))[4,4]`), which indicates a change in the odds ratio of `r exp(coef(summary(multi.wvgam))[4,1])` times. Extremely preterm children show a log odds of going home with health care of `r coef(summary(multi.wvgam))[6,1]` (Z=`r coef(summary(multi.wvgam))[6,3]`, p = `r coef(summary(multi.wvgam))[6,4]`), or an odds ratio of `r exp(coef(summary(multi.wvgam))[6,1])` times as likely to go home for health care as to be discharged from NICU to short term hospital stay if they were born extremely premature. If respiratory issues were present, we would expect a decrease log odds of a newborn going straight home by `r coef(summary(multi.wvgam))[8,1]` (Z=`r coef(summary(multi.wvgam))[8,3]`, p = `r coef(summary(multi.wvgam))[8,4]`), or that the odds of going to home health care decrease by `r exp(coef(summary(multi.wvgam))[8,1])` times. Finally, the presence of sepsis indicates that the log odds increase by `r coef(summary(multi.wvgam))[10,1]` (Z=`r coef(summary(multi.wvgam))[10,3]`, p = `r coef(summary(multi.wvgam))[10,4]`), which translates to `r exp(coef(summary(multi.wvgam))[10,1])` times. 
+
+
+# Conclusions
+
+Extremely preterm infants were less likely that full-term infants to be discharged from NICU, while there was no difference between full-term and preterm. This is in agreement with much of the current literature, in which increasing levels of prematurity require lengthy hospital stays to complete development (Manktelow et al., 2010). We also found that having a circulatory system malformation decreased infants' likelihood of being discharged from NICU, but less so for extremely preterm infants. This was counter to what we had expected, as we had expected any health insult to have a more deleterious effect on the more vulnerable extremely preterm infants. However, this may make sense when considering that extremely preterm infants are already expected to have a lengthier stay than full-term infants, and so any extension caused by a malformation is less likely to cause a large relative extension to their stay. Not unexpectedly, sepsis caused decreased likelihood to be discharged from NICU for all infants, meaning it caused lengthier stays. Again not unexpectedly, we found that prematurity level and the prevalence of certain health conditions were not independent, with circulatory system malformations, heart rate anomalies, jaundice and sepsis tending to be associated with greater levels of prematurity.
+
+We found that respiratory issues, sepsis, and preterm status were significant predictors of the discharge location. We had hypothesized that sepsis and prematurity would be included in the model, but we had believed that interactions between these variables would be just as important as the variables themselves. However, the interactions were not important to the model, either testing initially or at the end. While not surprising that respiratory issues would lead to decreased odds of going home or going home with health care in place, that they did not interact with prematurity was surprising. Extremely premature babies have inadequately developed lungs, and respiration is one of the latest developments to be made in utero, so this finding was unexpected. 
+
+Thus, overall, we see that an infant's health outcome after admission to NICU is affected by multiple factors. Interestingly, the interactions between maturity level and health conditions did not pan out as we had expected. We had expected that increasing levels of prematurity would make any health upset even more dangerous, causing a larger relative increase in hospital stay, or a greater likelihood of requiring further care after NICU. This was not the case, however; Interactions between prematurity and health conditions either were non-significant, or counter to out initial predictions. As explained above, the most intuitive reason that this may be the case is that NICU stay length tends to increase with increasingly levels of prematurity by default, as these infant's must advance in their development while at the NICU. As such, any influence on length of stay from other conditions is likely to simply be absorbed into these already lengthy stays.
+
+This study suffered from a few limitations which future studies could address. For one, we collapsed many different diagnoses into somewhat broad categories, so this could have hidden a lot of variability in stay length based on diagnosis. In fact, some diagnoses were ignored entirely, and so could be influencing stay length without our accounting for them. Additionally, as we used the diagnoses that infants were admitted to NICU for, and did not factor in whether these diagnoses were refined or added to at subsequent time points, we may have some incorrect diagnoses in our data set. Major diagnostic errors have been found to occur in NICU settings (e.g. errors in 19.2% of diagnoses of NICU deaths (Custer et al., 2015)), and so this could have caused deviations from reality in our data. Our study only assessed health outcomes directly relating to NICU. This is likely not the end of the health journey for many infants, and so future studies could also look at longer-term outcomes for infants discharged from NICU.
+
+
+
+# References:
+
+
+Aita, M., Stremler, R., Feeley, N., Lavallée, A., & De Clifford-Faugère, G. (2017). Effectiveness of interventions during NICU hospitalization on the neurodevelopment of preterm infants: A systematic review protocol. Systematic Reviews, 6(1), 1–5. https://doi.org/10.1186/s13643-017-0613-5
+
+Couturier, D.-L., Ma, J., Heritier, S., & Manuguerra, M. (2017). survivalMPL: Penalised Maximum Likelihood for Survival Analysis Models. Retrieved from https://cran.r-project.org/package=survivalMPL
+
+Cummings, J. J., & Marlow, N. (2018). Reducing variations in neonatal outcomes: Look at practices, systems, and the patient. Pediatrics, 141(5), 2018–2021. https://doi.org/10.1542/peds.2018-0402
+
+Custer, J. W., Winters, B. D., Goode, V., Robinson, K. A., Yang, T., Pronovost, P. J., & Newman-Toker, D. E. (2015). Diagnostic errors in the pediatric and neonatal ICU: A systematic review. Pediatric Critical Care Medicine, 16(1), 29–36. https://doi.org/10.1097/PCC.0000000000000274
+
+Discenza, D. (2018). Real Awareness in the NICU and Through the Lifespan. Neonatal Network, 37(4), 248–249.
+
+Foglia, E. E., Langeveld, R., Heimall, L., Deveney, A., Ades, A., Jensen, E. A., & Nadkarni, V. M. (2017). Incidence, characteristics, and survival following cardiopulmonary resuscitation in the quaternary neonatal intensive care unit. Resuscitation, 110, 32–36. https://doi.org/10.1016/j.resuscitation.2016.10.012
+
+Johnson, A. E. W., Pollard, T. J., Shen, L., Lehman, L. W. H., Feng, M., Ghassemi, M., … Mark, R. G. (2016). MIMIC-III, a freely accessible critical care database. Scientific Data, 3, 1–9. https://doi.org/10.1038/sdata.2016.35
+
+Karlsson, A., & Clements, M. (2019). biostat3: Utility Functions, Datasets and Extended Examples for Survival Analysis. Retrieved from https://cran.r-project.org/package=biostat3
+
+Kassambara, A., Kosinski, M., & Biecek, P. (2019). survminer: Drawing Survival Curves using “ggplot2.” Retrieved from https://cran.r-project.org/package=survminer
+
+Kono, Y., Mishina, J., Yonemoto, N., Kusuda, S., Fujimura, M., & NICU Network, Japan. (2011). Neonatal correlates of adverse outcomes in very low‐birthweight infants in the NICU Network. Pediatrics International, 53(6), 930-935.
+
+Kurek Eken, M., Tüten, A., Özkaya, E., Karatekin, G., & Karateke, A. (2017). Major determinants of survival and length of stay in the neonatal intensive care unit of newborns from women with premature preterm rupture of membranes. Journal of Maternal-Fetal and Neonatal Medicine, 30(16), 1972–1975. https://doi.org/10.1080/14767058.2016.1235696
+
+Manktelow, B., Draper, E. S., Field, C., & Field, D. (2010). Estimates of length of neonatal stay for very premature babies in the UK. Archives of Disease in Childhood: Fetal and Neonatal Edition, 95(4). https://doi.org/10.1136/adc.2009.168633
+
+Meadow, W., Lagatta, J., Andrews, B., & Lantos, J. (2012). The mathematics of morality for neonatal resuscitation. Clinics in Perinatology, 39(4), 941–956. https://doi.org/10.1016/j.clp.2012.09.013
+
+Platt, M. J. (2014). Outcomes in preterm infants. Public health, 128(5), 399-403.
+
+Peebles-Kleiger, M. J. (2000). Pediatric and neonatal intensive care hospitalization as traumatic stressor: implications for intervention. Bulletin of the Menninger Clinic, 64(2), 257.
+
+R Core Team. (2007). R: A language and environment for statistical computing. R Foundation for Statistical Computing. https://doi.org/https://doi.org/ISBN 3-900051-07-0
+
+RStudio Team. (2015). RStudio: Integrated Development for R. RStudio, Inc. Retrieved from http://www.rstudio.com/.
+
+Rysavy, M. A. (2018). Prognosis as an Intervention. Clinics in Perinatology, 45(2), 231–240. https://doi.org/10.1016/j.clp.2018.01.009
+
+Seaton, S. E., Barker, L., Jenkins, D., Draper, E. S., Abrams, K. R., & Manktelow, B. N. (2016). What factors predict length of stay in a neonatal unit: A systematic review. BMJ Open, 6(10). https://doi.org/10.1136/bmjopen-2015-010466
+
+Sengupta, S., Carrion, V., Shelton, J., Wynn, R. J., Ryan, R. M., Singhal, K., & Lakshminrusimha, S. (2013). Adverse neonatal outcomes associated with early-term birth. JAMA pediatrics, 167(11), 1053-1059.
+
+Subedi, D., Deboer, M. D., & Scharf, R. J. (2017). Developmental trajectories in children with prolonged NICU stays. Archives of Disease in Childhood, 102(1), 29–34. https://doi.org/10.1136/archdischild-2016-310777
+
+Tang, Y., Horikoshi, M., & Li, W. (2016). ggfortify: Data Visualization Tools for Statistical Analysis Results. Retrieved from https://cran.r-project.org/package=ggfortify
+
+Therneau, T. M., & Grambsch, P. M. (2000). Modeling Survival Data: Extending the Cox Model. Retrieved from https://cran.r-project.org/package=survival
+
+Umberger, E., Canvasser, J., & Hall, S. L. (2018). Enhancing NICU parent engagement and empowerment. Seminars in Pediatric Surgery, 27(1), 19–24. https://doi.org/10.1053/j.sempedsurg.2017.11.004
+
+Wickam, H. (2009). ggplot2: Elegant Graphics for Data Analysis (35th ed.). https://doi.org/https://doi.org/10.1007/978-0-387-98141-3
+
+Wickham, H., François, R., Henry, L., & Müller, K. (2020). dplyr: A Grammar of Data Manipulation. Retrieved from https://cran.r-project.org/package=dplyr
+
+Wickham, H., & Henry, L. (2020). tidyr: Tidy Messy Data. Retrieved from https://cran.r-project.org/package=tidyr
+
+Yee, T. W. (2019). VGAM: Vector Generalized Linear and Additive Models. Retrieved from https://cran.r-project.org/package=VGAM
+
+Yee, T. W., Stoklosa, J., & Huggins, R. M. (2015). The VGAM Package for Capture-Recapture Data Using the Conditional Likelihood. Journal of Statistical Software, 65(5), 1–33. Retrieved from http://www.jstatsoft.org/v65/i05/
+
+
